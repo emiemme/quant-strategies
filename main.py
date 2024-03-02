@@ -12,6 +12,7 @@ if __name__ == "__main__":
 
     stock_data, signals = SMA.get_signals(symbol, start_date, end_date)
 
-    portfolio = simple_backtest.backtest_strategy(signals,stock_data,0.01,1000)
+    #portfolio = simple_backtest.backtest_strategy(signals,stock_data,0.01,1000)
+    portfolio = simple_backtest.backtest_strategy_portfolio_sim(signals,stock_data,0.01,1000)
     # Print the portfolio
     print(portfolio)   
