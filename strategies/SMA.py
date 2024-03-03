@@ -24,7 +24,7 @@ def generate_signals(data):
     signals['signal'][40:] = np.select(conditions, choices, default=0.0)
     # Create signals
     #signals['signal'][40:] = np.where(signals['short_mavg'][40:] > signals['long_mavg'][40:], 1.0, 0.0)
-    print(signals['signal'][40:])
+    #print(signals['signal'][40:])
     # Generate trading orders
     signals['positions'] = signals['signal'].diff()
     return signals
