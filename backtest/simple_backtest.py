@@ -24,7 +24,7 @@ def backtest_strategy(signals, backtest_data, initial_capital=10000, commissions
     return portfolio
 
 
-def backtest_strategy_portfolio_sim(signals, backtest_data, share_to_buy = 1, initial_capital=1000, commissions=0.002):
+def backtest_strategy_portfolio_sim(signals, backtest_data, share_to_buy = 1, initial_capital=1000, commissions=0.002, print_signals= False):
     current_capital = initial_capital
     portfolio = pd.DataFrame(index=signals.index).fillna(0.0)
     old_stock = 0
@@ -37,8 +37,9 @@ def backtest_strategy_portfolio_sim(signals, backtest_data, share_to_buy = 1, in
                 commission = (day_value * share_to_buy * commissions)
                 current_capital = current_capital - (day_value * share_to_buy) - commission
                 portfolio.loc[index,'cash'] = current_capital
-                print("[BUY ] Date " +str(index) +" currentCap:" + str(current_capital) +" day_value: " + str(day_value) +
-                       " Stock:"+ str(portfolio.loc[index,'stock']) + " Commission:" + str(commission) )
+                if print_signals:
+                    print("[BUY ] Date " +str(index) +" currentCap:" + str(current_capital) +" day_value: " + str(day_value) +
+                           " Stock:"+ str(portfolio.loc[index,'stock']) + " Commission:" + str(commission) )
             else:
                 portfolio.loc[index,'stock']  = old_stock 
                 portfolio.loc[index,'cash'] = current_capital
@@ -46,8 +47,9 @@ def backtest_strategy_portfolio_sim(signals, backtest_data, share_to_buy = 1, in
             if old_stock > 0:
                 current_capital = current_capital + (day_value * old_stock) - (day_value * old_stock * commissions)
                 old_stock = 0
-                print("[SELL] Date " +str(index) +" currentCap:" + str(current_capital) +" " + " day_value: " + str(day_value) +" Stock:0" 
-                      + " Commission: {0:0.2f}".format(commission))
+                if print_signals:
+                    print("[SELL] Date " +str(index) +" currentCap:" + str(current_capital) +" " + " day_value: " + str(day_value) +" Stock:0" 
+                          + " Commission: {0:0.2f}".format(commission))
             #else:
                 #print("[SELL]")
 
