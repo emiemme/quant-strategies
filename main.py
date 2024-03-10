@@ -4,6 +4,7 @@ sys.path.insert(0, 'backtest/')
 from strategies import SMA
 from strategies import RSI
 from strategies import MACD
+from strategies import MACD_SMA
 from backtest import simple_backtest
 
 
@@ -28,3 +29,8 @@ if __name__ == "__main__":
     portfolio = simple_backtest.backtest_strategy_portfolio_sim(signals,stock_data,0.1,1000)
     # Print the portfolio
     print(portfolio)   
+
+    stock_data, signals = MACD_SMA.get_signals(symbol, start_date, end_date)
+    portfolio = simple_backtest.backtest_strategy_portfolio_sim(signals,stock_data,0.1,1000)
+    # Print the portfolio
+    print(portfolio)  
