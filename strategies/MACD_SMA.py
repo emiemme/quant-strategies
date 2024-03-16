@@ -1,6 +1,5 @@
 import pandas as pd
 import yfinance as yf
-import pandas_ta as ta
 from strategies import SMA
 from strategies import MACD
 
