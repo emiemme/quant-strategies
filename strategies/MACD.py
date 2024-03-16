@@ -3,11 +3,16 @@ import yfinance as yf
 import pandas_ta as ta
 
 def download_stock_data(symbol, start_date, end_date):
-    stock_data = yf.download(symbol, start=start_date, end=end_date)
-    return stock_data
-
+    try:
+        stock_data = yf.download(symbol, start=start_date, end=end_date)
+        return stock_data
+    except Exception as e:
+        print(f"Error downloading stock data: {e}")
+        return None
 
 def generate_signals(data):
+    if not isinstance(data, pd.DataFrame) or 'Close' not in data.columns:
+        raise ValueError("Invalid input data")
     # Calculate MACD
     short_term = 12
     long_term = 26
@@ -38,5 +43,8 @@ def generate_signals(data):
 
 def get_signals(symbol, start_date, end_date):
     stock_data = download_stock_data(symbol, start_date, end_date)
-    signals = generate_signals(stock_data)
-    return stock_data, signals
+    if stock_data is not None:
+        signals = generate_signals(stock_data)
+        return stock_data, signals
+    else:
+        return None, None

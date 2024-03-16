@@ -2,12 +2,17 @@ import pandas as pd
 import yfinance as yf
 import numpy as np
 
-
 def download_stock_data(symbol, start_date, end_date):
-    stock_data = yf.download(symbol, start=start_date, end=end_date)
-    return stock_data
+    try:
+        stock_data = yf.download(symbol, start=start_date, end=end_date)
+        return stock_data
+    except Exception as e:
+        print(f"Error downloading stock data: {e}")
+        return None
 
 def generate_signals(data):
+    if not isinstance(data, pd.DataFrame) or 'Close' not in data.columns:
+        raise ValueError("Invalid input data")
     signals = pd.DataFrame(index=data.index)
     signals['signal'] = 0.0
 
@@ -20,16 +25,18 @@ def generate_signals(data):
 
     conditions  = [ signals['short_mavg'][40:] > signals['long_mavg'][40:], signals['short_mavg'][40:] < signals['long_mavg'][40:], signals['short_mavg'][40:] == signals['long_mavg'][40:] ]
     choices     = [ 1.0, -1.0, 0.0 ]
-        
-    signals['signal'][40:] = np.select(conditions, choices, default=0.0)
+
     # Create signals
-    #signals['signal'][40:] = np.where(signals['short_mavg'][40:] > signals['long_mavg'][40:], 1.0, 0.0)
-    #print(signals['signal'][40:])
+    signals['signal'][40:] = np.select(conditions, choices, default=0.0)
+
     # Generate trading orders
     signals['positions'] = signals['signal'].diff()
     return signals
 
 def get_signals(symbol, start_date, end_date):
     stock_data = download_stock_data(symbol, start_date, end_date)
-    signals = generate_signals(stock_data)
-    return stock_data, signals
+    if stock_data is not None:
+        signals = generate_signals(stock_data)
+        return stock_data, signals
+    else:
+        return None, None
