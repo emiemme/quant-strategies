@@ -25,6 +25,13 @@ def backtest_strategy(signals, backtest_data, initial_capital=10000, commissions
 
 
 def backtest_strategy_portfolio_sim(signals, backtest_data, share_to_buy = 1, initial_capital=1000, commissions=0.002, print_signals= False):
+    if not isinstance(share_to_buy, int) or share_to_buy <= 0:
+        raise ValueError("share_to_buy must be a positive integer")
+    if not isinstance(initial_capital, (int, float)) or initial_capital <= 0:
+        raise ValueError("initial_capital must be a positive number")
+    if not isinstance(commissions, (int, float)) or commissions < 0:
+        raise ValueError("commissions must be a non-negative number")
+    
     current_capital = initial_capital
     portfolio = pd.DataFrame(index=signals.index).fillna(0.0)
     old_stock = 0
