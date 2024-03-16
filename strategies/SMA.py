@@ -33,6 +33,30 @@ def generate_signals(data):
     signals['positions'] = signals['signal'].diff()
     return signals
 
+def sma_20_50_200_indicators(data):
+    sma = pd.DataFrame(index=data.index)
+    sma['SMA_20'] = data['Close'].rolling(window=20, min_periods=1, center=False).mean()
+
+    sma['SMA_50']  = data['Close'].rolling(window=50, min_periods=1, center=False).mean()
+    sma['SMA_200'] = data['Close'].rolling(window=200, min_periods=1, center=False).mean()
+
+    signals = pd.DataFrame(index=data.index)
+    signals['signal'] = 0
+
+    df_len = len(data)
+    for row in range(1, df_len):
+        if sma['SMA_50'].iloc[row -1] > sma['SMA_200'].iloc[row-1] and sma['SMA_50'].iloc[row] < sma['SMA_200'].iloc[row]:
+            signals['signal'].iat[row] = -1
+        elif sma['SMA_50'].iloc[row -1] < sma['SMA_200'].iloc[row-1] and sma['SMA_50'].iloc[row] > sma['SMA_200'].iloc[row]:
+            signals['signal'].iat[row] = 1
+        else:
+            if sma['SMA_50'].iloc[row -1] > sma['SMA_20'].iloc[row -1] and sma['SMA_50'].iloc[row] < sma['SMA_20'].iloc[row]:
+                signals['signal'].iat[row] = -1
+            elif sma['SMA_50'].iloc[row -1] < sma['SMA_20'].iloc[row -1] and sma['SMA_50'].iloc[row] > sma['SMA_20'].iloc[row]:
+                signals['signal'].iat[row] = 1
+                           
+    return signals
+
 def get_signals(symbol, start_date, end_date):
     stock_data = download_stock_data(symbol, start_date, end_date)
     if stock_data is not None:
