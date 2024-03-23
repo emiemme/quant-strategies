@@ -6,6 +6,7 @@ from keras.models import Sequential
 from keras.layers import LSTM, Dropout, Dense
 from sklearn.preprocessing import MinMaxScaler
 
+from datetime import  timedelta
 
 
 def download_stock_data(symbol, start_date, end_date):
@@ -55,7 +56,6 @@ def model_training(X_train, Y_train):
     model.fit(X_train, Y_train, epochs=100, batch_size=32)
     return model
 
-
 def model_generate_prediction(model, X_test, scaler, stock_data):
     # make predictions
     predictions = model.predict(X_test)
@@ -68,7 +68,7 @@ def model_generate_prediction(model, X_test, scaler, stock_data):
     # Predict the next 10 days
     last_60_days = scaled_data[-60:]
     next_10_days = []
-    for i in range(30):
+    for i in range(10):
         X_ntest = np.array([last_60_days])
         X_ntest = np.reshape(X_ntest, (X_ntest.shape[0], X_ntest.shape[1], 1))
         pred_price = model.predict(X_ntest)
@@ -78,10 +78,10 @@ def model_generate_prediction(model, X_test, scaler, stock_data):
 
     # Create a dataframe for the next 10 days
     last_date = stock_data.index[-1]
-    future_dates = [last_date + timedelta(days=i) for i in range(1, 31)]
+    future_dates = [last_date + timedelta(days=i) for i in range(1, 11)]
     future_predictions = pd.DataFrame(data={'Date': future_dates, 'Close': next_10_days})
     future_predictions.set_index('Date', inplace=True)  
-
+    
     return predictions,future_predictions
 
 def get_signals(symbol, start_date, end_date):
@@ -89,5 +89,4 @@ def get_signals(symbol, start_date, end_date):
     X_train, y_train, X_test, y_test, scaler = normalize_data(stock_data)        
     
     model = model_training(X_train, y_train)
-
-    
+    predictions, future_predictions = model_generate_prediction(model, X_test,scaler, stock_data)
