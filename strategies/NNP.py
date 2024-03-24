@@ -7,7 +7,7 @@ from keras.layers import LSTM, Dropout, Dense
 from sklearn.preprocessing import MinMaxScaler
 import keras
 
-from datetime import  timedelta
+from datetime import datetime, timedelta
 
 from matplotlib.dates import MonthLocator, DateFormatter
 import matplotlib.pyplot as plt
@@ -128,3 +128,15 @@ def get_signals(symbol, start_date, end_date):
 
     plt.plot(stock_data['Close'][int(len(stock_data)*0.8):], color = 'blue')
     plt.plot(future_predictions, color = 'red')
+
+    plt.ylabel(symbol + ' Stock Price')
+    if not  os.path.exists('img'):
+        os.mkdir('img')
+    imgPath = 'img/' + symbol + '/'
+    isExist = os.path.exists(imgPath)
+    if not isExist:
+        os.mkdir(imgPath)
+    currentDateTime = datetime.now()
+    currentDateTime_string = currentDateTime.strftime("%d_%m_%YT%H_%M_%S")
+    plt.savefig('img/' + symbol + '/' + str(currentDateTime_string) + '_neural_network_pattern.png')
+
