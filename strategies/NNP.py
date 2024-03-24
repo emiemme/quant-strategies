@@ -5,11 +5,15 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers import LSTM, Dropout, Dense
 from sklearn.preprocessing import MinMaxScaler
+import keras
 
 from datetime import  timedelta
 
 from matplotlib.dates import MonthLocator, DateFormatter
 import matplotlib.pyplot as plt
+
+import os.path
+
 
 def download_stock_data(symbol, start_date, end_date):
     stock_data = yf.download(symbol, start=start_date, end=end_date)
@@ -101,8 +105,20 @@ def model_generate_prediction(model, X_test, scaler, stock_data):
 def get_signals(symbol, start_date, end_date):
     stock_data = download_stock_data(symbol, start_date, end_date)
     X_train, y_train, X_test, y_test, scaler = normalize_data(stock_data)        
+
+    if not  os.path.exists('models'):
+        os.mkdir('models')
+
+    modelsPath = 'models/' + symbol + '/'
+    isExist = os.path.exists(modelsPath)
+    if not isExist:
+        os.mkdir(modelsPath)
+    if not os.path.exists(modelsPath + symbol + "_nnp.keras"):
+        model = model_training(X_train, y_train)
+        model.save(modelsPath + symbol + "_nnp.keras")
+    else:
+        model = keras.models.load_model(modelsPath + symbol + "_nnp.keras")
     
-    model = model_training(X_train, y_train)
     predictions, future_predictions = model_generate_prediction(model, X_test,scaler, stock_data)
 
     ax = stock_data['Close'][int(len(stock_data)*0.8):].plot()
