@@ -8,6 +8,8 @@ from sklearn.preprocessing import MinMaxScaler
 
 from datetime import  timedelta
 
+from matplotlib.dates import MonthLocator, DateFormatter
+import matplotlib.pyplot as plt
 
 def download_stock_data(symbol, start_date, end_date):
     stock_data = yf.download(symbol, start=start_date, end=end_date)
@@ -102,3 +104,11 @@ def get_signals(symbol, start_date, end_date):
     
     model = model_training(X_train, y_train)
     predictions, future_predictions = model_generate_prediction(model, X_test,scaler, stock_data)
+
+    ax = stock_data['Close'][int(len(stock_data)*0.8):].plot()
+    ax.xaxis.set_major_locator(MonthLocator())
+    ax.xaxis.set_major_formatter(DateFormatter("%b-%y"))
+    ax.tick_params(axis="x", labelrotation= 90)
+
+    plt.plot(stock_data['Close'][int(len(stock_data)*0.8):], color = 'blue')
+    plt.plot(future_predictions, color = 'red')
