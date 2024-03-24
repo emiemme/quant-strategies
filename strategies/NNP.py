@@ -78,6 +78,7 @@ def model_generate_prediction(model, X_test, scaler, stock_data):
     # make predictions
     predictions = model.predict(X_test)
     predictions = scaler.inverse_transform(predictions)
+    df_prediction=pd.DataFrame(predictions, columns=['predictions'],index=stock_data[int(len(stock_data) - len(predictions)):].index  )
 
     df = pd.DataFrame(index=stock_data.index)
     df['Close'] = stock_data['Close']
@@ -86,7 +87,7 @@ def model_generate_prediction(model, X_test, scaler, stock_data):
     # Predict the next 10 days
     last_60_days = scaled_data[-60:]
     next_10_days = []
-    for i in range(10):
+    for i in range(30):
         X_ntest = np.array([last_60_days])
         X_ntest = np.reshape(X_ntest, (X_ntest.shape[0], X_ntest.shape[1], 1))
         pred_price = model.predict(X_ntest)
@@ -96,11 +97,16 @@ def model_generate_prediction(model, X_test, scaler, stock_data):
 
     # Create a dataframe for the next 10 days
     last_date = stock_data.index[-1]
-    future_dates = [last_date + timedelta(days=i) for i in range(1, 11)]
+    future_dates = [last_date + timedelta(days=i) for i in range(1, 31)]
     future_predictions = pd.DataFrame(data={'Date': future_dates, 'Close': next_10_days})
     future_predictions.set_index('Date', inplace=True)  
     
-    return predictions,future_predictions
+    return df_prediction,future_predictions
+
+def model_evaluation(model, X_test, Y_test):   
+    # evaluate the model
+    test_loss = model.evaluate(X_test, Y_test)
+    print('Test Loss:', test_loss)   
 
 def get_signals(symbol, start_date, end_date):
     stock_data = download_stock_data(symbol, start_date, end_date)
@@ -119,15 +125,13 @@ def get_signals(symbol, start_date, end_date):
     else:
         model = keras.models.load_model(modelsPath + symbol + "_nnp.keras")
     
+    model_evaluation(model, X_test, y_test)
     predictions, future_predictions = model_generate_prediction(model, X_test,scaler, stock_data)
-
-    ax = stock_data['Close'][int(len(stock_data)*0.8):].plot()
-    ax.xaxis.set_major_locator(MonthLocator())
-    ax.xaxis.set_major_formatter(DateFormatter("%b-%y"))
-    ax.tick_params(axis="x", labelrotation= 90)
 
     plt.plot(stock_data['Close'][int(len(stock_data)*0.8):], color = 'blue')
     plt.plot(future_predictions, color = 'red')
+    plt.plot(predictions, color = 'green')
+    plt.xticks(rotation=90)
 
     plt.ylabel(symbol + ' Stock Price')
     if not  os.path.exists('img'):
