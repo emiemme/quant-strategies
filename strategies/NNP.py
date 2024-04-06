@@ -3,7 +3,7 @@ import yfinance as yf
 import numpy as np
 
 from keras.models import Sequential
-from keras.layers import LSTM, Dropout, Dense
+from keras.layers import LSTM, GRU, Dropout, Dense
 from sklearn.preprocessing import MinMaxScaler
 import keras
 
@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from matplotlib.dates import MonthLocator, DateFormatter
 import matplotlib.pyplot as plt
-
+from scipy.stats import linregress
 import os.path
 
 
@@ -47,7 +47,7 @@ def normalize_data(stock_data):
 
     return X_train, Y_train, X_test, Y_test, scaler
 
-def model_training(X_train, Y_train):    
+def model_training_LSTM(X_train, Y_train):    
     model = Sequential()
     #Adding the first LSTM layer and some Dropout regularisation
     model.add(LSTM(units = 100, return_sequences = True, input_shape = (X_train.shape[1], 1)))
@@ -73,6 +73,32 @@ def model_training(X_train, Y_train):
     # train the model
     model.fit(X_train, Y_train, epochs=100, batch_size=32)
     return model
+
+def model_training_GRU(X_train, Y_train):
+    gru_model = Sequential()
+    # First GRU layer with dropout
+    gru_model.add(GRU(50, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])))
+    gru_model.add(Dropout(0.2))
+
+    # Second GRU layer with dropout
+    gru_model.add(GRU(50, return_sequences=True))
+    gru_model.add(Dropout(0.2))
+
+    # Third GRU layer with dropout
+    gru_model.add(GRU(50, return_sequences=True))
+    gru_model.add(Dropout(0.2))
+
+    # Fourth GRU layer with dropout
+    gru_model.add(GRU(50))
+    gru_model.add(Dropout(0.2))
+
+    # Output layer
+    gru_model.add(Dense(1))
+
+    gru_model.compile(optimizer='adam', loss='mean_squared_error')
+    # train the model
+    gru_model.fit(X_train, Y_train, epochs=100, batch_size=32)
+    return gru_model
 
 def model_generate_prediction(model, X_test, scaler, stock_data):
     # make predictions
@@ -108,7 +134,7 @@ def model_evaluation(model, X_test, Y_test):
     test_loss = model.evaluate(X_test, Y_test)
     print('Test Loss:', test_loss)   
 
-def get_signals(symbol, start_date, end_date):
+def get_signals(symbol, start_date, end_date, use_model="LSTM"):
     stock_data = download_stock_data(symbol, start_date, end_date)
     X_train, y_train, X_test, y_test, scaler = normalize_data(stock_data)        
 
@@ -119,14 +145,29 @@ def get_signals(symbol, start_date, end_date):
     isExist = os.path.exists(modelsPath)
     if not isExist:
         os.mkdir(modelsPath)
-    if not os.path.exists(modelsPath + symbol + "_nnp.keras"):
-        model = model_training(X_train, y_train)
-        model.save(modelsPath + symbol + "_nnp.keras")
-    else:
-        model = keras.models.load_model(modelsPath + symbol + "_nnp.keras")
+    if use_model == "LSTM":        
+        if not os.path.exists(modelsPath + symbol + "_nnp_LSTM.keras"):
+            model = model_training_LSTM(X_train, y_train)
+            model.save(modelsPath + symbol + "_nnp_LSTM.keras")
+        else:
+            model = keras.models.load_model(modelsPath + symbol + "_nnp_LSTM.keras")
+    elif use_model == "GRU":          
+        if not os.path.exists(modelsPath + symbol + "_nnp_GRU.keras"):
+            model = model_training_GRU(X_train, y_train)
+            model.save(modelsPath + symbol + "_nnp_GRU.keras")
+        else:
+            model = keras.models.load_model(modelsPath + symbol + "_nnp_GRU.keras")    
     
     model_evaluation(model, X_test, y_test)
     predictions, future_predictions = model_generate_prediction(model, X_test,scaler, stock_data)
+    # Convert the index to datetime format
+    future_predictions.index = pd.to_datetime(future_predictions.index)
+
+    # Calculate the number of days since a reference date (e.g., the first date)
+    x = (future_predictions.index - future_predictions.index[0]).days
+
+    y = future_predictions['Close']
+    future_reg = linregress(x, y)
 
     plt.plot(stock_data['Close'][int(len(stock_data)*0.8):], color = 'blue')
     plt.plot(future_predictions, color = 'red')
@@ -143,4 +184,6 @@ def get_signals(symbol, start_date, end_date):
     currentDateTime = datetime.now()
     currentDateTime_string = currentDateTime.strftime("%d_%m_%YT%H_%M_%S")
     plt.savefig('img/' + symbol + '/' + str(currentDateTime_string) + '_neural_network_pattern.png')
+
+    return future_reg.slope
 

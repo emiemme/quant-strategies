@@ -1,5 +1,6 @@
 import sys
 import importlib
+import strategies.NNP as nnp
 
 def get_strategy(strategy_name):
     """Import and return a strategy module"""
@@ -22,12 +23,18 @@ def backtest_strategy(strategy_name, symbol, start_date, end_date, shares_to_buy
         return None
 
 if __name__ == "__main__":
-    symbol = 'ADA-USD'
+    symbol = 'LDO.MI'
     start_date = '2023-01-01'
-    end_date = '2024-07-01'
+    end_date = '2024-10-01'
     share_to_buy = 100
     initial_capital = 1000
     STRATEGIES = ['SMA', 'RSI', 'MACD', 'MACD_SMA', 'MACD_RSI']
+
+    slope = nnp.get_signals(symbol, start_date, end_date,"GRU")
+    if slope > 0:
+        print("----------------------- The trend is positive")
+    else:
+        print("----------------------- The trend is negative")
 
     # Add custom modules to the path
     try:
@@ -46,3 +53,5 @@ if __name__ == "__main__":
             print(f'Portfolio for {strategy_name}:')
             print(portfolio.tail(1))
             print()
+
+                
