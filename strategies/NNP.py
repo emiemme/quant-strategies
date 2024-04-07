@@ -22,56 +22,40 @@ def download_stock_data(symbol, start_date, end_date):
 def create_sequences(data, seq_length):
     X, y = [], []
     for i in range(len(data) - seq_length):
-        X.append(data['Close'][i:i+seq_length])
-        y.append(data['Close'][i+seq_length])
+        X.append(data[i:i+seq_length])
+        y.append(data[i+seq_length, 0])
     return np.array(X), np.array(y)
 
 def normalize_data(stock_data):
-    # normalize data
-    df = pd.DataFrame(index=stock_data.index)
-    df['Close'] = stock_data['Close']
-    scaler = MinMaxScaler()
-    df['Close'] = scaler.fit_transform(df['Close'].values.reshape(-1, 1))
+    scaler = MinMaxScaler(feature_range=(0,1))
+    scaled_data = scaler.fit_transform(stock_data[['Close']].dropna())
+    
+    train_size = int(len(scaled_data) * 0.8)
+    train_data, test_data = scaled_data[:train_size], scaled_data[train_size:]
+    
+    seq_length=60
+    X_train, y_train = create_sequences(train_data,seq_length)
+    X_test, y_test = create_sequences(test_data,seq_length)
+    
+    return X_train, y_train, X_test, y_test, scaler
 
-    # split data into training and testing sets
-    train_data = df[:int(len(df)*0.8)]
-    test_data = df[int(len(df)*0.8):]
-
-    seq_length = 30 #10  # Define the sequence length (number of past days to consider)
-    X_train, Y_train = create_sequences(train_data, seq_length)
-    X_test, Y_test = create_sequences(test_data, seq_length)
-
-    # Reshape input for LSTM (samples, timesteps, features)
-    X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
-    X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
-
-    return X_train, Y_train, X_test, Y_test, scaler
-
-def model_training_LSTM(X_train, Y_train):    
+def model_training_LSTM(X_train, y_train):    
     model = Sequential()
     #Adding the first LSTM layer and some Dropout regularisation
-    model.add(LSTM(units = 100, return_sequences = True, input_shape = (X_train.shape[1], 1)))
+    model.add(LSTM(units = 100, return_sequences = True, input_shape=(X_train.shape[1], X_train.shape[2])))
     model.add(Dropout(0.2))
 
     # Adding a second LSTM layer and some Dropout regularisation
-    model.add(LSTM(units = 100, return_sequences = True))
-    model.add(Dropout(0.2))
-
-    # Adding a third LSTM layer and some Dropout regularisation
-    model.add(LSTM(units = 100, return_sequences = True))
-    model.add(Dropout(0.2))
-
-    # Adding a fourth LSTM layer and some Dropout regularisation
-    model.add(LSTM(units = 100))
+    model.add(LSTM(units = 100, return_sequences = False))
     model.add(Dropout(0.2))
 
     # Adding the output layer
-    model.add(Dense(units = 25))
+    model.add(Dense(units = 50))
     model.add(Dense(units = 1))
 
     model.compile(optimizer='adam',loss='mean_squared_error')
     # train the model
-    model.fit(X_train, Y_train, epochs=100, batch_size=32)
+    model.fit(X_train, y_train, epochs=100, batch_size=32)
     return model
 
 def model_training_GRU(X_train, Y_train):
@@ -100,43 +84,51 @@ def model_training_GRU(X_train, Y_train):
     gru_model.fit(X_train, Y_train, epochs=100, batch_size=32)
     return gru_model
 
-def model_generate_prediction(model, X_test, scaler, stock_data):
-    # make predictions
+def model_generate_prediction(model, X_test, y_test, scaler):
     predictions = model.predict(X_test)
-    predictions = scaler.inverse_transform(predictions)
-    df_prediction=pd.DataFrame(predictions, columns=['predictions'],index=stock_data[int(len(stock_data) - len(predictions)):].index  )
-
-    df = pd.DataFrame(index=stock_data.index)
-    df['Close'] = stock_data['Close']
-    scaler = MinMaxScaler()
-    scaled_data = scaler.fit_transform(df['Close'].values.reshape(-1, 1))
-    # Predict the next 10 days
-    last_60_days = scaled_data[-60:]
-    next_10_days = []
-    for i in range(30):
-        X_ntest = np.array([last_60_days])
-        X_ntest = np.reshape(X_ntest, (X_ntest.shape[0], X_ntest.shape[1], 1))
-        pred_price = model.predict(X_ntest)
-        pred_price_unscaled = scaler.inverse_transform(pred_price)
-        next_10_days.append(pred_price_unscaled[0, 0])
-        last_60_days = np.append(last_60_days, pred_price, axis=0)[-60:]
-
-    # Create a dataframe for the next 10 days
-    last_date = stock_data.index[-1]
-    future_dates = [last_date + timedelta(days=i) for i in range(1, 31)]
-    future_predictions = pd.DataFrame(data={'Date': future_dates, 'Close': next_10_days})
-    future_predictions.set_index('Date', inplace=True)  
+    predictions = scaler.inverse_transform(np.hstack((predictions, np.zeros((len(predictions), 3)))))[:, 0]
     
-    return df_prediction,future_predictions
+    future_input = X_test[-1]
+    future_predictions = []
+    for _ in range(30):
+        future_pred = model.predict(future_input.reshape(1, future_input.shape[0], future_input.shape[1]))
+        future_predictions.append(future_pred[0,0])
+        future_input = np.roll(future_input, -1, axis=0)
+        future_input[-1, 0] = future_pred
+    
+    return predictions, future_predictions
 
 def model_evaluation(model, X_test, Y_test):   
     # evaluate the model
     test_loss = model.evaluate(X_test, Y_test)
     print('Test Loss:', test_loss)   
 
+
+def plot_data(symbol,X_train, y_train, X_test, y_test, future_predictions, forecast, scaler):
+    y_train_real = scaler.inverse_transform(np.hstack((y_train.reshape(-1,1), np.zeros((len(y_train), 3)))))[:, 0]
+    y_test_real = scaler.inverse_transform(np.hstack((y_test.reshape(-1,1), np.zeros((len(y_test), 3)))))[:, 0]
+    forecast_real = scaler.inverse_transform(np.hstack((np.array(forecast).reshape(-1,1), np.zeros((len(forecast), 3)))))[:, 0]
+    
+    plt.figure(figsize=(14,5))
+    #plt.plot(range(len(y_train_real)), y_train_real, label='Train Data')
+    plt.plot(range(len(y_train_real), len(y_train_real) + len(y_test_real)), y_test_real, label='Actual Prices')
+    plt.plot(range(len(y_train_real), len(y_train_real) + len(y_test_real)), future_predictions, label='Predicted Prices')
+    plt.plot(range(len(y_train_real) + len(y_test_real), len(y_train_real) + len(y_test_real) + len(forecast_real)), forecast_real, label='Forecast', linestyle='dotted')
+    plt.legend()
+    if not  os.path.exists('img'):
+        os.mkdir('img')
+    imgPath = 'img/' + symbol + '/'
+    isExist = os.path.exists(imgPath)
+    if not isExist:
+        os.mkdir(imgPath)
+    currentDateTime = datetime.now()
+    currentDateTime_string = currentDateTime.strftime("%d_%m_%YT%H_%M_%S")
+    plt.savefig('img/' + symbol + '/' + str(currentDateTime_string) + '_neural_network_pattern.png')
+    plt.show()
+
 def get_signals(symbol, start_date, end_date, use_model="LSTM"):
     stock_data = download_stock_data(symbol, start_date, end_date)
-    X_train, y_train, X_test, y_test, scaler = normalize_data(stock_data)        
+    X_train, y_train, X_test, y_test, scaler = normalize_data(stock_data)
 
     if not  os.path.exists('models'):
         os.mkdir('models')
@@ -159,31 +151,11 @@ def get_signals(symbol, start_date, end_date, use_model="LSTM"):
             model = keras.models.load_model(modelsPath + symbol + "_nnp_GRU.keras")    
     
     model_evaluation(model, X_test, y_test)
-    predictions, future_predictions = model_generate_prediction(model, X_test,scaler, stock_data)
-    # Convert the index to datetime format
-    future_predictions.index = pd.to_datetime(future_predictions.index)
+    future_predictions, forecast = model_generate_prediction(model, X_test, y_test, scaler)
+ 
+    plot_data(symbol,X_train, y_train, X_test, y_test, future_predictions, forecast, scaler)
 
-    # Calculate the number of days since a reference date (e.g., the first date)
-    x = (future_predictions.index - future_predictions.index[0]).days
+    future_reg = (forecast[-1] - forecast[0])
 
-    y = future_predictions['Close']
-    future_reg = linregress(x, y)
-
-    plt.plot(stock_data['Close'][int(len(stock_data)*0.8):], color = 'blue')
-    plt.plot(future_predictions, color = 'red')
-    plt.plot(predictions, color = 'green')
-    plt.xticks(rotation=90)
-
-    plt.ylabel(symbol + ' Stock Price')
-    if not  os.path.exists('img'):
-        os.mkdir('img')
-    imgPath = 'img/' + symbol + '/'
-    isExist = os.path.exists(imgPath)
-    if not isExist:
-        os.mkdir(imgPath)
-    currentDateTime = datetime.now()
-    currentDateTime_string = currentDateTime.strftime("%d_%m_%YT%H_%M_%S")
-    plt.savefig('img/' + symbol + '/' + str(currentDateTime_string) + '_neural_network_pattern.png')
-
-    return future_reg.slope
+    return future_reg
 
