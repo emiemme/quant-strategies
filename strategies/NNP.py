@@ -17,7 +17,17 @@ import os.path
 
 def download_stock_data(symbol, start_date, end_date):
     stock_data = yf.download(symbol, start=start_date, end=end_date)
+    stock_data['MACD'] = stock_data['Close'].ewm(span=12, adjust=False).mean() - stock_data['Close'].ewm(span=26, adjust=False).mean()
+    stock_data['RSI'] = compute_RSI(stock_data['Close'])
+    stock_data['Volume'] = stock_data['Volume']
     return stock_data
+
+def compute_RSI(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
 
 def create_sequences(data, seq_length):
     X, y = [], []
@@ -28,8 +38,8 @@ def create_sequences(data, seq_length):
 
 def normalize_data(stock_data):
     scaler = MinMaxScaler(feature_range=(0,1))
-    scaled_data = scaler.fit_transform(stock_data[['Close']].dropna())
-    
+    scaled_data = scaler.fit_transform(stock_data[['Close', 'MACD', 'RSI', 'Volume']].dropna())
+
     train_size = int(len(scaled_data) * 0.8)
     train_data, test_data = scaled_data[:train_size], scaled_data[train_size:]
     
@@ -104,16 +114,17 @@ def model_evaluation(model, X_test, Y_test):
     print('Test Loss:', test_loss)   
 
 
-def plot_data(symbol,X_train, y_train, X_test, y_test, future_predictions, forecast, scaler):
+def plot_data(symbol, y_train, y_test, future_predictions, forecast, scaler):
     y_train_real = scaler.inverse_transform(np.hstack((y_train.reshape(-1,1), np.zeros((len(y_train), 3)))))[:, 0]
     y_test_real = scaler.inverse_transform(np.hstack((y_test.reshape(-1,1), np.zeros((len(y_test), 3)))))[:, 0]
     forecast_real = scaler.inverse_transform(np.hstack((np.array(forecast).reshape(-1,1), np.zeros((len(forecast), 3)))))[:, 0]
-    
+
     plt.figure(figsize=(14,5))
     #plt.plot(range(len(y_train_real)), y_train_real, label='Train Data')
     plt.plot(range(len(y_train_real), len(y_train_real) + len(y_test_real)), y_test_real, label='Actual Prices')
     plt.plot(range(len(y_train_real), len(y_train_real) + len(y_test_real)), future_predictions, label='Predicted Prices')
     plt.plot(range(len(y_train_real) + len(y_test_real), len(y_train_real) + len(y_test_real) + len(forecast_real)), forecast_real, label='Forecast', linestyle='dotted')
+
     plt.legend()
     if not  os.path.exists('img'):
         os.mkdir('img')
@@ -153,7 +164,7 @@ def get_signals(symbol, start_date, end_date, use_model="LSTM"):
     model_evaluation(model, X_test, y_test)
     future_predictions, forecast = model_generate_prediction(model, X_test, y_test, scaler)
  
-    plot_data(symbol,X_train, y_train, X_test, y_test, future_predictions, forecast, scaler)
+    plot_data(symbol, y_train,  y_test, future_predictions, forecast, scaler)
 
     future_reg = (forecast[-1] - forecast[0])
 
