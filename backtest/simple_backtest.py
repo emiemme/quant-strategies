@@ -6,16 +6,16 @@ def backtest_strategy(signals, backtest_data, initial_capital=10000, commissions
     
     for index, row in signals.iterrows():
         #print(index, row["signal"])
-       print( backtest_data.loc[index,'Adj Close'])
+       print( backtest_data.loc[index,'Close'])
     positions['stock'] = 10 * signals['signal']   # Buy 100 shares on each buy signal
     # Initialize the portfolio with value owned
-    portfolio = positions.multiply(backtest_data['Adj Close'], axis=0)
+    portfolio = positions.multiply(backtest_data['Close'], axis=0)
 
     # Store the difference in shares owned
     pos_diff = positions.diff()
 
     # Add 'cash' to portfolio
-    portfolio['cash'] = initial_capital - (pos_diff.multiply(backtest_data['Adj Close'], axis=0)).cumsum()
+    portfolio['cash'] = initial_capital - (pos_diff.multiply(backtest_data['Close'], axis=0)).cumsum()
 
     # Add 'total' to portfolio
     portfolio['total'] = portfolio['cash'] + portfolio['stock']
@@ -23,35 +23,34 @@ def backtest_strategy(signals, backtest_data, initial_capital=10000, commissions
 
     return portfolio
 
-
-def backtest_strategy_portfolio_sim(signals, backtest_data, share_to_buy = 1, initial_capital=1000, commissions=0.002, print_signals= False):
-    if not isinstance(share_to_buy, int) or share_to_buy <= 0:
-        raise ValueError("share_to_buy must be a positive integer")
-    if not isinstance(initial_capital, (int, float)) or initial_capital <= 0:
+def backtest_strategy_portfolio_sim(signals, backtest_data, symbol, share_to_buy = 1, initial_capital=1000, commissions=0.002, print_signals= False):
+    if (not isinstance(share_to_buy, int)) | (share_to_buy <= 0):
+        raise ValueError("share_to_buy must be a positive integer share_to_buy="+ str(share_to_buy))
+    if (not isinstance(initial_capital, (int, float))) | (initial_capital <= 0):
         raise ValueError("initial_capital must be a positive number")
-    if not isinstance(commissions, (int, float)) or commissions < 0:
+    if (not isinstance(commissions, (int, float))) | (commissions < 0):
         raise ValueError("commissions must be a non-negative number")
-    
+
     current_capital = initial_capital
     portfolio = pd.DataFrame(index=signals.index).fillna(0.0)
     old_stock = 0
     for index, row in signals.iterrows():
-        day_value = backtest_data.loc[index,'Adj Close']
-        if row["signal"] > 0.0:
-            if current_capital >= (day_value * share_to_buy):
+        day_value = backtest_data[('Close', symbol)].loc[index]
+        if (row["signal"] > 0.0):
+            if (current_capital >= (day_value * share_to_buy)):
                 portfolio.loc[index,'stock'] = share_to_buy * row["signal"] + old_stock
                 old_stock = portfolio.loc[index,'stock']
                 commission = (day_value * share_to_buy * commissions)
                 current_capital = current_capital - (day_value * share_to_buy) - commission
                 portfolio.loc[index,'cash'] = current_capital
-                if print_signals:
+                if (print_signals):
                     print("[BUY ] Date " +str(index) +" currentCap:" + str(current_capital) +" day_value: " + str(day_value) +
                            " Stock:"+ str(portfolio.loc[index,'stock']) + " Commission:" + str(commission) )
             else:
                 portfolio.loc[index,'stock']  = old_stock 
                 portfolio.loc[index,'cash'] = current_capital
-        elif row["signal"] < 0.0:    
-            if old_stock > 0:
+        elif (row["signal"] < 0.0):  
+            if (old_stock > 0):
                 current_capital = current_capital + (day_value * old_stock) - (day_value * old_stock * commissions)
                 old_stock = 0
                 if print_signals:
@@ -67,7 +66,7 @@ def backtest_strategy_portfolio_sim(signals, backtest_data, share_to_buy = 1, in
             portfolio.loc[index,'cash'] = current_capital           
                             
     # Add 'total' to portfolio
-    portfolio['total'] = portfolio['cash'] + portfolio['stock'].multiply(backtest_data['Adj Close'], axis=0)
+    portfolio['total'] = portfolio['cash'] + (portfolio['stock'] * backtest_data[('Close', symbol)])
     portfolio['P/L %'] = ((portfolio['total']/initial_capital) - 1) *100
 
     return portfolio    

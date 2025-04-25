@@ -11,30 +11,31 @@ def download_stock_data(symbol, start_date, end_date):
         print(f"Error downloading stock data: {e}")
         return None
 
-def generate_signals(data):
+def generate_signals(symbol,data):
     signals = pd.DataFrame(index=data.index)
     signals['signal'] = 0
 
-    macd_signals =  MACD.generate_signals(data)
-    rsi_signals  = RSI.generate_signals(data)
+    macd_signals =  MACD.generate_signals(symbol,data)
+    rsi_signals  = RSI.generate_signals(symbol,data)
     
     buyFlag = False
     sellFlag = False
-    df_len = len(data)
-    for row in range(1, df_len):
-        if rsi_signals['signal'].iloc[row] == 1:
+    for i in range(1, len(data.index)):
+        idx = data.index[i]
+
+        if rsi_signals.loc[idx, 'signal'] == 1:
             buyFlag = True
             sellFlag = False
-        elif rsi_signals['signal'].iloc[row] == -1:
+        elif rsi_signals.loc[idx, 'signal'] == -1:
             buyFlag = False
             sellFlag = True
-    
-        if buyFlag == True:
-            if macd_signals['signal'].iloc[row] == 1:
-                signals['signal'].iat[row] = 1  
-        elif sellFlag == True:   
-            if macd_signals['signal'].iloc[row] == -1:
-                signals['signal'].iat[row] = -1  
+
+        if buyFlag:
+            if macd_signals.loc[idx, 'signal'] == 1:
+                signals.loc[idx, 'signal'] = 1
+        elif sellFlag:
+            if macd_signals.loc[idx, 'signal'] == -1:
+                signals.loc[idx, 'signal'] = -1
 
         
  
@@ -44,7 +45,7 @@ def generate_signals(data):
 def get_signals(symbol, start_date, end_date):
     stock_data = download_stock_data(symbol, start_date, end_date)
     if stock_data is not None:
-        signals = generate_signals(stock_data)
+        signals = generate_signals(symbol,stock_data)
         return stock_data, signals
     else:
         return None, None

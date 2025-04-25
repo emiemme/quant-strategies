@@ -11,7 +11,7 @@ def download_stock_data(symbol, start_date, end_date):
         print(f"Error downloading stock data: {e}")
         return None
 
-def generate_signals(data):
+def generate_signals(symbol,data):
     signals = pd.DataFrame(index=data.index)
     signals['signal'] = 0.0
 
@@ -20,7 +20,7 @@ def generate_signals(data):
     rsi_sell_threshold = 70
 
     # Calculate the RSI
-    delta = data['Close'].diff()
+    delta = data[('Close', symbol)].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=rsi_period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=rsi_period).mean()
     rs = gain / (loss + 1e-8)  # avoid division by zero
@@ -39,7 +39,7 @@ def generate_signals(data):
 def get_signals(symbol, start_date, end_date):
     stock_data = download_stock_data(symbol, start_date, end_date)
     if stock_data is not None:
-        signals = generate_signals(stock_data)
+        signals = generate_signals(symbol,stock_data)
         return stock_data, signals
     else:
         return None, None
