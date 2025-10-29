@@ -1,4 +1,5 @@
 import pandas as pd
+import importlib
 
 def backtest_strategy(signals, backtest_data, initial_capital=10000, commissions=0.02):
     current_capital = initial_capital
@@ -23,24 +24,27 @@ def backtest_strategy(signals, backtest_data, initial_capital=10000, commissions
 
     return portfolio
 
-def backtest_strategy_portfolio_sim(signals, backtest_data, symbol, share_to_buy = 1, initial_capital=1000, commissions=0.002, print_signals= False):
-    if (not isinstance(share_to_buy, int)) | (share_to_buy <= 0):
-        raise ValueError("share_to_buy must be a positive integer share_to_buy="+ str(share_to_buy))
+def backtest_strategy_portfolio_sim(signals, backtest_data, symbol, initial_capital=1000, commissions=0.002, min_commission=5, print_signals= False, adj_macro_data = False, macro_data = None):
     if (not isinstance(initial_capital, (int, float))) | (initial_capital <= 0):
         raise ValueError("initial_capital must be a positive number")
     if (not isinstance(commissions, (int, float))) | (commissions < 0):
         raise ValueError("commissions must be a non-negative number")
-
+    
+    share_to_buy = 1
     current_capital = initial_capital
     portfolio = pd.DataFrame(index=signals.index).fillna(0.0)
     old_stock = 0
     for index, row in signals.iterrows():
         day_value = backtest_data[('Close', symbol)].loc[index]
+        if(adj_macro_data):
+            share_to_buy = adj_share_to_buy(index,macro_data,current_capital,day_value)
         if (row["signal"] > 0.0):
             if (current_capital >= (day_value * share_to_buy)):
                 portfolio.loc[index,'stock'] = share_to_buy * row["signal"] + old_stock
                 old_stock = portfolio.loc[index,'stock']
                 commission = (day_value * share_to_buy * commissions)
+                if(commission < min_commission):
+                    commission = min_commission
                 current_capital = current_capital - (day_value * share_to_buy) - commission
                 portfolio.loc[index,'cash'] = current_capital
                 if (print_signals):
@@ -51,7 +55,10 @@ def backtest_strategy_portfolio_sim(signals, backtest_data, symbol, share_to_buy
                 portfolio.loc[index,'cash'] = current_capital
         elif (row["signal"] < 0.0):  
             if (old_stock > 0):
-                current_capital = current_capital + (day_value * old_stock) - (day_value * old_stock * commissions)
+                commission = (day_value * old_stock * commissions)
+                if(commission < min_commission):
+                    commission = min_commission
+                current_capital = current_capital + (day_value * old_stock) - commission
                 old_stock = 0
                 if print_signals:
                     print("[SELL] Date " +str(index) +" currentCap:" + str(current_capital) +" " + " day_value: " + str(day_value) +" Stock:0" 
@@ -66,7 +73,19 @@ def backtest_strategy_portfolio_sim(signals, backtest_data, symbol, share_to_buy
             portfolio.loc[index,'cash'] = current_capital           
                             
     # Add 'total' to portfolio
+
     portfolio['total'] = portfolio['cash'] + (portfolio['stock'] * backtest_data[('Close', symbol)])
     portfolio['P/L %'] = ((portfolio['total']/initial_capital) - 1) *100
+    portfolio['rolling_max'] = portfolio['total'].cummax()
+    portfolio['drawdown'] = portfolio['total'] - portfolio['rolling_max']
+    portfolio['drawdown_pct'] = portfolio['drawdown'] / portfolio['rolling_max'] * 100
 
     return portfolio    
+
+
+def adj_share_to_buy(date,macro_data, capital, price_close):
+    macrodata_t = importlib.import_module('strategies.risk_mng')
+    risk_pct = macrodata_t.get_risk_for_date(date, macro_data)
+    max_risk_amount = capital * risk_pct
+    position_size = max_risk_amount / price_close
+    return position_size

@@ -4,7 +4,7 @@ import pandas_ta as ta
 
 def download_stock_data(symbol, start_date, end_date):
     try:
-        stock_data = yf.download(symbol, start=start_date, end=end_date)
+        stock_data = yf.download(symbol, start=start_date, end=end_date, progress=False)
         return stock_data
     except Exception as e:
         print(f"Error downloading stock data: {e}")
